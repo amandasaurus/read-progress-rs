@@ -104,6 +104,79 @@ impl<R> Read for ReaderWithSize<R> where R: Read {
         if let Ok(bytes_read) = result {
             self.total_read += bytes_read;
         }
+        if self.read_start_time.is_none() {
+            self.read_start_time = Some(Instant::now());
+        }
         result
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use std::thread::sleep;
+
+    #[test]
+    fn basic() {
+        let bytes = "hello".as_bytes();
+        let mut reader = ReaderWithSize::new(5, Cursor::new(bytes));
+        assert_eq!(reader.assummed_total_size(), 5);
+
+        let mut buf = vec![0];
+
+        reader.read_exact(&mut buf).unwrap();
+        assert_eq!(buf, vec!['h' as u8]);
+        assert_eq!(reader.total_read(), 1);
+        assert_eq!(reader.fraction(), 0.2);
+
+        let mut buf = vec![0, 0];
+        reader.read_exact(&mut buf).unwrap();
+        assert_eq!(buf, vec!['e' as u8, 'l' as u8]);
+        assert_eq!(reader.total_read(), 3);
+        assert_eq!(reader.fraction(), 0.6);
+
+        let _cursor: &Cursor<&[u8]> = reader.inner();
+        let _cursor: Cursor<&[u8]> = reader.into_inner();
+    }
+
+    #[test]
+    fn eta1() {
+        let start = Instant::now();
+        let bytes = "hello".as_bytes();
+        let mut reader = ReaderWithSize::new(5, Cursor::new(bytes));
+
+        // haven't started running yet
+        assert_eq!(reader.eta(), None);
+
+        let mut buf = vec![0];
+        reader.read_exact(&mut buf).unwrap();
+
+        // wait 10ms
+        sleep(Duration::from_millis(10));
+
+        // The ETA won't be exactly 40ms, becase code takes a little bit to run. Confirm that it's
+        // between 40 & 41 ms.
+        let eta = reader.eta();
+        let bytes_per_sec = reader.bytes_per_sec();
+        let etc = reader.etc();
+
+        assert!(eta.is_some());
+        let eta: Duration = eta.unwrap();
+
+        assert!(eta >= Duration::from_millis(40));
+        assert!(40./1000. - eta.as_secs_f64() <= 1.);
+
+
+        assert!(bytes_per_sec.is_some());
+        let bytes_per_sec: f64 = bytes_per_sec.unwrap();
+        assert!(bytes_per_sec >=  20.);   // ≥ 1 byte per 50ms
+        assert!(bytes_per_sec < 100.);
+
+        assert!(etc.is_some());
+        let etc: Instant = etc.unwrap();
+        assert!(etc > start);
+        assert!(etc < start+Duration::from_secs(1));
+    }
+
 }
