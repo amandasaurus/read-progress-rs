@@ -86,6 +86,11 @@ impl ReaderWithSize<File> {
         let path: PathBuf = path.into();
 
         let file = File::open(path)?;
+        ReaderWithSize::from_file(file)
+    }
+
+    /// Given a file, create a `ReaderWithSize` based on that file size
+    pub fn from_file(file: File) -> Result<Self, std::io::Error> {
         let size = file.metadata()?.len() as usize;
 
         Ok(Self::new(size, file))
