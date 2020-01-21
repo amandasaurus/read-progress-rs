@@ -5,9 +5,10 @@ use std::fs::File;
 
 /// A wrapper for a `Read` that monitors how many bytes have been read, and how many are to go
 pub struct ReaderWithSize<R: Read> {
+    inner: R,
+
     total_size: usize,
     total_read: usize,
-    inner: R
 }
 
 impl<R: Read> ReaderWithSize<R> {
