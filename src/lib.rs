@@ -45,11 +45,15 @@ impl<R: Read> ReaderWithSize<R> {
     pub fn inner(&self) -> &R {
         &self.inner
     }
-
+    
+    /// When did this reader start reading
+    /// `None` if it hasn't started
     pub fn read_start_time(&self) -> Option<Instant> {
         self.read_start_time
     }
 
+    /// Estimated Time to Arrival, at this rate, what's the predicted end time
+    /// `None` if it hasn't started yet
     pub fn eta(&self) -> Option<Duration> {
         self.read_start_time.map(|read_start_time| {
             let duration_since_start = Instant::now() - read_start_time;
@@ -57,13 +61,8 @@ impl<R: Read> ReaderWithSize<R> {
         })
     }
 
-    pub fn est_total_time(&self) -> Option<Duration> {
-        self.read_start_time.map(|read_start_time| {
-            let duration_since_start = Instant::now() - read_start_time;
-            duration_since_start.div_f64(self.fraction())
-        })
-    }
-
+    /// Estimated Time to Completion, at this rate, how long before it is complete
+    /// `None` if it hasn't started yet
     pub fn etc(&self) -> Option<Instant> {
         self.read_start_time.map(|read_start_time| {
             let duration_since_start = Instant::now() - read_start_time;
@@ -71,6 +70,17 @@ impl<R: Read> ReaderWithSize<R> {
         })
     }
 
+    /// Total estimated duration this reader will run for.
+    /// `None` if it hasn't started yet
+    pub fn est_total_time(&self) -> Option<Duration> {
+        self.read_start_time.map(|read_start_time| {
+            let duration_since_start = Instant::now() - read_start_time;
+            duration_since_start.div_f64(self.fraction())
+        })
+    }
+
+    /// How many bytes per second are being read.
+    /// `None` if it hasn't started
     pub fn bytes_per_sec(&self) -> Option<f64> {
         self.read_start_time.map(|read_start_time| {
             let since_start = Instant::now() - read_start_time;
