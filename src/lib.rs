@@ -1,8 +1,82 @@
+//! This `std::io::Read` wrapper allows you to answer: “How much of this file has been read?”
+//!
 //! Monitor how much you have read from a `Read`.
+//!
+//! # Usage
+//!
+//! ```rust
+//! use read_progress::ReaderWithSize;
+//! let mut rdr = ReaderWithSize::from_file(file)?;
+//! ...
+//! ... [ perform regular reads ]
+//! rdr.fraction()         // 0 (nothing) → 1 (everything) with how much of the file has been read
+//!
+//! // Based on how fast the file is being read you can call:
+//! rdr.eta()              // `std::time::Duration` with how long until it's finished
+//! rdr.est_total_time()   // `std::time::Instant` when, at this rate, it'll be finished
+//! ```
 use std::path::PathBuf;
 use std::io::Read;
+use std::io::BufReader;
 use std::fs::File;
 use std::time::{Instant, Duration};
+
+pub trait ReadWithSize: Read {
+    ///// The read function
+    //fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize>;
+
+    /// The total number of bytes that have been read from this reader
+    fn total_read(&self) -> usize;
+
+    /// The assumed total number of bytes in this reader, created when this object was created.
+    fn assummed_total_size(&self) -> usize;
+
+    /// How far along this reader have we read? What fraction have we read? May be >1.0 if the
+    /// initial provided assumed total size was wrong.
+    fn fraction(&self) -> f64;
+
+    /// When did this reader start reading
+    /// `None` if it hasn't started
+    fn read_start_time(&self) -> Option<Instant>;
+
+    /// Estimated Time to Arrival, at this rate, what's the predicted end time
+    /// `None` if it hasn't started yet
+    fn eta(&self) -> Option<Duration> {
+        self.read_start_time().map(|read_start_time| {
+            let duration_since_start = Instant::now() - read_start_time;
+            duration_since_start.div_f64(self.fraction()) - duration_since_start
+        })
+    }
+
+    /// Estimated Time to Completion, at this rate, how long before it is complete
+    /// `None` if it hasn't started yet
+    fn etc(&self) -> Option<Instant> {
+        self.read_start_time().map(|read_start_time| {
+            let duration_since_start = Instant::now() - read_start_time;
+            read_start_time + duration_since_start.div_f64(self.fraction())
+        })
+    }
+
+    /// Total estimated duration this reader will run for.
+    /// `None` if it hasn't started yet
+    fn est_total_time(&self) -> Option<Duration> {
+        self.read_start_time().map(|read_start_time| {
+            let duration_since_start = Instant::now() - read_start_time;
+            duration_since_start.div_f64(self.fraction())
+        })
+    }
+
+    /// How many bytes per second are being read.
+    /// `None` if it hasn't started
+    fn bytes_per_sec(&self) -> Option<f64> {
+        self.read_start_time().map(|read_start_time| {
+            let since_start = Instant::now() - read_start_time;
+            (self.total_read() as f64)/since_start.as_secs_f64()
+        })
+    }
+
+
+}
 
 /// A wrapper for a `Read` that monitors how many bytes have been read, and how many are to go
 pub struct ReaderWithSize<R: Read> {
@@ -19,23 +93,6 @@ impl<R: Read> ReaderWithSize<R> {
         ReaderWithSize{ total_size, total_read: 0, inner, read_start_time: None }
     }
 
-    /// The total number of bytes that have been read from this reader
-    pub fn total_read(&self) -> usize {
-        self.total_read
-    }
-
-    /// The assumed total number of bytes in this reader, created when this object was created.
-    pub fn assummed_total_size(&self) -> usize {
-        self.total_size
-    }
-
-
-    /// How far along this reader have we read? What fraction have we read? May be >1.0 if the
-    /// initial provided assumed total size was wrong.
-    pub fn fraction(&self) -> f64 {
-        (self.total_read as f64)/(self.total_size as f64)
-    }
-
     /// Consumer this, and return the inner `Read`.
     pub fn into_inner(self) -> R {
         self.inner
@@ -45,49 +102,50 @@ impl<R: Read> ReaderWithSize<R> {
     pub fn inner(&self) -> &R {
         &self.inner
     }
-    
+
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let result = self.inner.read(buf);
+        if let Ok(bytes_read) = result {
+            self.total_read += bytes_read;
+        }
+        if self.read_start_time.is_none() {
+            self.read_start_time = Some(Instant::now());
+        }
+        result
+    }
+
+}
+
+impl<R: Read> ReadWithSize for ReaderWithSize<R> {
+
+    /// The total number of bytes that have been read from this reader
+    fn total_read(&self) -> usize {
+        self.total_read
+    }
+
+    /// The assumed total number of bytes in this reader, created when this object was created.
+    fn assummed_total_size(&self) -> usize {
+        self.total_size
+    }
+
+    /// How far along this reader have we read? What fraction have we read? May be >1.0 if the
+    /// initial provided assumed total size was wrong.
+    fn fraction(&self) -> f64 {
+        (self.total_read as f64)/(self.total_size as f64)
+    }
+
     /// When did this reader start reading
     /// `None` if it hasn't started
-    pub fn read_start_time(&self) -> Option<Instant> {
+    fn read_start_time(&self) -> Option<Instant> {
         self.read_start_time
     }
 
-    /// Estimated Time to Arrival, at this rate, what's the predicted end time
-    /// `None` if it hasn't started yet
-    pub fn eta(&self) -> Option<Duration> {
-        self.read_start_time.map(|read_start_time| {
-            let duration_since_start = Instant::now() - read_start_time;
-            duration_since_start.div_f64(self.fraction()) - duration_since_start
-        })
-    }
+}
 
-    /// Estimated Time to Completion, at this rate, how long before it is complete
-    /// `None` if it hasn't started yet
-    pub fn etc(&self) -> Option<Instant> {
-        self.read_start_time.map(|read_start_time| {
-            let duration_since_start = Instant::now() - read_start_time;
-            read_start_time + duration_since_start.div_f64(self.fraction())
-        })
+impl<R: Read> Read for ReaderWithSize<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.read(buf)
     }
-
-    /// Total estimated duration this reader will run for.
-    /// `None` if it hasn't started yet
-    pub fn est_total_time(&self) -> Option<Duration> {
-        self.read_start_time.map(|read_start_time| {
-            let duration_since_start = Instant::now() - read_start_time;
-            duration_since_start.div_f64(self.fraction())
-        })
-    }
-
-    /// How many bytes per second are being read.
-    /// `None` if it hasn't started
-    pub fn bytes_per_sec(&self) -> Option<f64> {
-        self.read_start_time.map(|read_start_time| {
-            let since_start = Instant::now() - read_start_time;
-            (self.total_read as f64)/since_start.as_secs_f64()
-        })
-    }
-
 }
 
 impl ReaderWithSize<File> {
@@ -107,19 +165,39 @@ impl ReaderWithSize<File> {
     }
 }
 
-/// Read from this, storing how many bytes were read
-impl<R> Read for ReaderWithSize<R> where R: Read {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let result = self.inner.read(buf);
-        if let Ok(bytes_read) = result {
-            self.total_read += bytes_read;
-        }
-        if self.read_start_time.is_none() {
-            self.read_start_time = Some(Instant::now());
-        }
-        result
+
+pub struct BufReaderWithSize<R: Read>(BufReader<ReaderWithSize<R>>);
+
+impl BufReaderWithSize<File> {
+    /// Given a path, create a `BufReaderWithSize` based on that file size
+    pub fn from_path(path: impl Into<PathBuf>) -> Result<Self, std::io::Error> {
+        let path: PathBuf = path.into();
+
+        let file = File::open(path)?;
+
+        BufReaderWithSize::from_file(file)
+    }
+
+    /// Given a file, create a `BufReaderWithSize` based on that file size
+    pub fn from_file(file: File) -> Result<Self, std::io::Error> {
+        let size = file.metadata()?.len() as usize;
+
+        let rdr = ReaderWithSize::new(size, file);
+        let rdr = BufReader::new(rdr);
+
+        Ok(BufReaderWithSize(rdr))
     }
 }
+
+
+impl<R: Read> Read for BufReaderWithSize<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buf)
+    }
+}
+
+
+
 
 #[cfg(test)]
 mod tests {
