@@ -4,11 +4,11 @@
 //!
 //! # Usage
 //!
-//! ```rust
+//! ```rust,ignore
 //! use read_progress::ReaderWithSize;
 //! let mut rdr = ReaderWithSize::from_file(file)?;
-//! ...
-//! ... [ perform regular reads ]
+//! // ...
+//! // ... [ perform regular reads ]
 //! rdr.fraction()         // 0 (nothing) → 1 (everything) with how much of the file has been read
 //!
 //! // Based on how fast the file is being read you can call:
