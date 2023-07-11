@@ -1,8 +1,7 @@
 [package]
 name = "read-progress"
-version = "0.2.0"
-authors = ["Rory McCann <rory@technomancy.org>"]
-edition = "2018"
+version = "0.3.0"
+authors = ["Amanda McCann <amanda@technomancy.org>"]
 repository = "https://git.sr.ht/~ebel/read-progress-rs"
 license = "AGPL-3.0+"
 description = "A rust library wrapping a `Read` in something that records how many bytes have been read"
