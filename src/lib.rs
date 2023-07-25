@@ -15,11 +15,11 @@
 //! rdr.eta()              // `std::time::Duration` with how long until it's finished
 //! rdr.est_total_time()   // `std::time::Instant` when, at this rate, it'll be finished
 //! ```
-use std::path::PathBuf;
-use std::io::Read;
-use std::io::BufReader;
 use std::fs::File;
-use std::time::{Instant, Duration};
+use std::io::BufReader;
+use std::io::Read;
+use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 pub trait ReadWithSize: Read {
     ///// The read function
@@ -71,11 +71,9 @@ pub trait ReadWithSize: Read {
     fn bytes_per_sec(&self) -> Option<f64> {
         self.read_start_time().map(|read_start_time| {
             let since_start = Instant::now() - read_start_time;
-            (self.total_read() as f64)/since_start.as_secs_f64()
+            (self.total_read() as f64) / since_start.as_secs_f64()
         })
     }
-
-
 }
 
 /// A wrapper for a `Read` that monitors how many bytes have been read, and how many are to go
@@ -90,7 +88,12 @@ pub struct ReaderWithSize<R: Read> {
 impl<R: Read> ReaderWithSize<R> {
     /// Create a ReaderWithSize from `inner` presuming the total number of bytes is `total_size`.
     pub fn new(total_size: usize, inner: R) -> Self {
-        ReaderWithSize{ total_size, total_read: 0, inner, read_start_time: None }
+        ReaderWithSize {
+            total_size,
+            total_read: 0,
+            inner,
+            read_start_time: None,
+        }
     }
 
     /// Consumer this, and return the inner `Read`.
@@ -113,11 +116,9 @@ impl<R: Read> ReaderWithSize<R> {
         }
         result
     }
-
 }
 
 impl<R: Read> ReadWithSize for ReaderWithSize<R> {
-
     /// The total number of bytes that have been read from this reader
     fn total_read(&self) -> usize {
         self.total_read
@@ -131,7 +132,7 @@ impl<R: Read> ReadWithSize for ReaderWithSize<R> {
     /// How far along this reader have we read? What fraction have we read? May be >1.0 if the
     /// initial provided assumed total size was wrong.
     fn fraction(&self) -> f64 {
-        (self.total_read as f64)/(self.total_size as f64)
+        (self.total_read as f64) / (self.total_size as f64)
     }
 
     /// When did this reader start reading
@@ -139,7 +140,6 @@ impl<R: Read> ReadWithSize for ReaderWithSize<R> {
     fn read_start_time(&self) -> Option<Instant> {
         self.read_start_time
     }
-
 }
 
 impl<R: Read> Read for ReaderWithSize<R> {
@@ -165,7 +165,6 @@ impl ReaderWithSize<File> {
     }
 }
 
-
 pub struct BufReaderWithSize<R: Read>(BufReader<ReaderWithSize<R>>);
 
 impl BufReaderWithSize<File> {
@@ -189,15 +188,11 @@ impl BufReaderWithSize<File> {
     }
 }
 
-
 impl<R: Read> Read for BufReaderWithSize<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.0.read(buf)
     }
 }
-
-
-
 
 #[cfg(test)]
 mod tests {
@@ -253,18 +248,16 @@ mod tests {
         let eta: Duration = eta.unwrap();
 
         assert!(eta >= Duration::from_millis(40));
-        assert!(40./1000. - eta.as_secs_f64() <= 1.);
-
+        assert!(40. / 1000. - eta.as_secs_f64() <= 1.);
 
         assert!(bytes_per_sec.is_some());
         let bytes_per_sec: f64 = bytes_per_sec.unwrap();
-        assert!(bytes_per_sec >=  20.);   // ≥ 1 byte per 50ms
+        assert!(bytes_per_sec >= 20.); // ≥ 1 byte per 50ms
         assert!(bytes_per_sec < 100.);
 
         assert!(etc.is_some());
         let etc: Instant = etc.unwrap();
         assert!(etc > start);
-        assert!(etc < start+Duration::from_secs(1));
+        assert!(etc < start + Duration::from_secs(1));
     }
-
 }
