@@ -1,3 +1,9 @@
+# Unreleased
+
+# v0.3.0 (2023-07-25)
+
+* Internal refactoring
+
 # 0.2.0
 
 * Added unit tests
