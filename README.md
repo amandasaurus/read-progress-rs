@@ -20,4 +20,4 @@ rdr.est_total_time()   // `std::time::Instant` when, at this rate, it'll be fini
 
 ## Copyright
 
-GNU Affero GPL 3.0 (or later)
+Available under the MIT, or Apache-2.0 or GNU Affero GPL 3.0+.
