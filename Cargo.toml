@@ -1,6 +1,6 @@
 [package]
 name = "read-progress"
-version = "0.3.0"
+version = "0.4.0"
 authors = ["Amanda McCann <amanda@technomancy.org>"]
 repository = "https://git.sr.ht/~ebel/read-progress-rs"
 license = "AGPL-3.0+"

@@ -1,6 +1,10 @@
 # Unreleased
 
-# v0.3.0 (2023-07-25)
+# v0.4.0
+
+* Internal refactoring
+
+# v0.3.0
 
 * Internal refactoring
 
